@@ -197,6 +197,51 @@ function extractNestedErrorMessage(error: APIError): string | null {
   return null
 }
 
+/**
+ * Read a response header from an `APIError.headers` value.
+ *
+ * The Anthropic SDK exposes `APIError.headers` as a plain object
+ * (`Record<string, string | null | undefined>`) wrapped in a case-insensitive
+ * `Proxy`, NOT the web `Headers` type. Several call sites in this tree were
+ * written assuming `headers.get(...)` exists, which crashes at runtime. This
+ * helper supports both shapes so header reads work regardless of SDK version.
+ */
+export function getErrorHeader(
+  headers: unknown,
+  name: string,
+): string | null | undefined {
+  if (!headers) return undefined
+
+  const get = (headers as { get?: unknown }).get
+  if (typeof get === 'function') {
+    return (get as (key: string) => string | null | undefined).call(headers, name)
+  }
+
+  const lower = name.toLowerCase()
+  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+    if (key.toLowerCase() === lower) {
+      if (Array.isArray(value)) return (value[0] as string) ?? null
+      return value == null ? null : String(value)
+    }
+  }
+  return undefined
+}
+
+/**
+ * Convert an `APIError.headers` value (plain object) into a real web `Headers`
+ * instance. The rate-limit parsing helpers in `claudeAiLimits.ts` are typed
+ * against `globalThis.Headers` and call `.get()`.
+ */
+export function toWebHeaders(headers: unknown): globalThis.Headers {
+  const result = new globalThis.Headers()
+  if (headers) {
+    for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+      if (value != null) result.set(key, String(value))
+    }
+  }
+  return result
+}
+
 export function formatAPIError(error: APIError): string {
   // Extract connection error details from the cause chain
   const connectionDetails = extractConnectionErrorDetails(error)

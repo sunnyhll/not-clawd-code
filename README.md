@@ -156,3 +156,114 @@ The current local state is a reconstruction. It is usable, but it may still diff
 
 - Yaswanth-ampolu
 - `ampoluyaswanth2002@gmail.com`
+
+# architecture
+
+```mermaid
+flowchart TB
+    subgraph UI["终端 UI 层 (React + Ink)"]
+        REPL[REPL 主界面] --> INPUT[输入框/命令面板]
+        UIHOOKS[UI 钩子 useInput/useAppState]
+    end
+
+    subgraph ENTRY["入口层"]
+        CLI[cli.tsx 参数解析] --> MODE{模式分发}
+        MODE -->|交互式| REPL
+        MODE -->|headless/-p| SDK[SDK 单次执行]
+    end
+
+    subgraph CORE["Agent 核心"]
+        QE[QueryEngine<br/>会话编排/中断/持久化] --> LOOP[query 主循环<br/>agentic loop]
+        LOOP --> PERM[权限系统<br/>canUseTool / PermissionMode]
+        PERM --> TOOLREG[工具注册表 tools.ts]
+        TOOLREG --> TOOLEXEC[Tool.call 执行器]
+        LOOP --> COMPACT[上下文压缩 compact]
+    end
+
+    subgraph TOOLS["工具系统 (50+ 工具)"]
+        FILE[文件类<br/>Read/Write/Edit/Glob/Grep]
+        SHELL[执行类<br/>Bash/PowerShell]
+        WEB[网络类<br/>WebFetch/WebSearch]
+        META[元工具<br/>AgentTool/TodoWrite/Task]
+        MCPT[MCPTool 透传外部工具]
+    end
+
+    subgraph SERVICES["服务层"]
+        LLM[LLM API 客户端<br/>流式/重试/用量统计]
+        MCP[MCP 客户端<br/>连接外部 server]
+        AUTH[OAuth 认证]
+        MEM[记忆/会话存储<br/>transcript/CLAUDE.md]
+        TELEM[遥测/成本追踪]
+    end
+
+    subgraph EXT["扩展机制"]
+        HOOKS[生命周期 Hooks<br/>PreToolUse/PostToolUse]
+        SKILLS[Skills/Plugins]
+        TASKS[后台任务系统]
+    end
+
+    REPL -- 用户输入/命令 --> QE
+    SDK --> QE
+    QE -- history + systemPrompt --> LLM
+    LLM -- tool_use 块 --> LOOP
+    TOOLEXEC --> FILE & SHELL & WEB & META & MCPT
+    TOOLEXEC --> HOOKS
+    MCPT <--> MCP
+    TOOLREG -.注册.-> SKILLS
+    LOOP -- tool_result 回传 LLM --> LLM
+    QE --> MEM
+    TELEM -.观测.-> LOOP
+
+
+```
+
+```mermaid
+classDiagram
+    class Tool {
+        <<interface>>
+        +inputSchema: ZodSchema
+        +call(args, context): Promise~ToolResult~
+        +description(input): Promise~string~
+        +isEnabled() bool
+        +isReadOnly(input) bool
+        +isConcurrencySafe(input) bool
+    }
+    class QueryEngine {
+        +queryLoop()
+        +processUserInput()
+        +processToolUse()
+        +abortController
+    }
+    class ToolUseContext {
+        +cwd: string
+        +fileStateCache: FileStateCache
+        +abortController: AbortController
+        +messageHistory
+    }
+    class CanUseToolFn {
+        <<interface>>
+        +invoke(tool, input): PermissionResult
+    }
+    class LLMClient {
+        +createMessage() AsyncStream
+        +retry/backoff()
+        +accumulateUsage()
+    }
+    class Command {
+        <<interface>>
+        +name
+        +call(args, context)
+    }
+    class MCPServer {
+        +listTools()
+        +callTool(name, args)
+    }
+    QueryEngine --> LLMClient : 发送对话
+    QueryEngine --> Tool : tool_use 分发
+    QueryEngine --> Command : 斜杠命令
+    Tool ..> ToolUseContext : 依赖
+    Tool ..> CanUseToolFn : 权限关卡
+    MCPServer ..|> Tool : 动态适配为工具
+
+
+```

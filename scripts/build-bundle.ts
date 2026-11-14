@@ -233,6 +233,12 @@ const buildOptions: esbuild.BuildOptions = {
 
   jsx: 'automatic',
 
+  // Inline .md files as strings (default export) — matches Bun's text loader
+  // used by src/skills/bundled/*Content.ts to ship bundled skill prompts.
+  loader: {
+    '.md': 'text',
+  },
+
   // Source maps for production debugging (external .map files)
   sourcemap: noSourcemap ? false : 'external',
 

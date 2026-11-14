@@ -37,7 +37,7 @@ import {
 import { sanitizeToolNameForAnalytics } from '../analytics/metadata.js'
 import { EMPTY_USAGE } from './emptyUsage.js'
 import { classifyAPIError } from './errors.js'
-import { extractConnectionErrorDetails } from './errorUtils.js'
+import { extractConnectionErrorDetails, toWebHeaders } from './errorUtils.js'
 
 export type { NonNullableUsage }
 export { EMPTY_USAGE }
@@ -273,7 +273,9 @@ export function logAPIError({
 }): void {
   const gateway = detectGateway({
     headers:
-      error instanceof APIError && error.headers ? error.headers : headers,
+      error instanceof APIError && error.headers
+        ? toWebHeaders(error.headers)
+        : headers,
     baseUrl: process.env.ANTHROPIC_BASE_URL,
   })
 

@@ -16,6 +16,7 @@ import {
   processRateLimitHeaders,
   shouldProcessRateLimits,
 } from './rateLimitMocking.js'
+import { toWebHeaders } from './api/errorUtils.js'
 
 // Re-export message functions from centralized location
 export {
@@ -495,8 +496,10 @@ export function extractQuotaStatusFromError(error: APIError): void {
   try {
     let newLimits = { ...currentLimits }
     if (error.headers) {
-      // Process headers (applies mocks from /mock-limits command if active)
-      const headersToUse = processRateLimitHeaders(error.headers)
+      // Process headers (applies mocks from /mock-limits command if active).
+      // The SDK exposes `error.headers` as a plain object, so normalize it to a
+      // real `Headers` instance before passing to `.get()`-based parsers.
+      const headersToUse = processRateLimitHeaders(toWebHeaders(error.headers))
       rawUtilization = extractRawUtilization(headersToUse)
       newLimits = computeNewLimitsFromHeaders(headersToUse)
 
