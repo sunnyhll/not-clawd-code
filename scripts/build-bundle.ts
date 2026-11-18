@@ -162,10 +162,11 @@ const buildOptions: esbuild.BuildOptions = {
   // Use tsconfig for baseUrl / paths resolution (complements plugin above)
   tsconfig: resolve(ROOT, 'tsconfig.json'),
 
-  // Alias bun:bundle to our runtime shim + stub for native addons not in this build
+  // Alias bun:bundle to our runtime shim, and color-diff-napi to the pure TS port
+  // (the real implementation, not the legacy stub which lacks ColorDiff.render).
   alias: {
     'bun:bundle': resolve(ROOT, 'src/shims/bun-bundle.ts'),
-    'color-diff-napi': resolve(ROOT, 'src/shims/color-diff-napi.ts'),
+    'color-diff-napi': resolve(ROOT, 'shims/color-diff-napi/index.ts'),
   },
 
   // Don't bundle node built-ins or problematic native packages
